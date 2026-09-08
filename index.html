@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="1.0.4">
+  <meta name="app-version" content="1.0.5">
   <title>Plataforma de Registro y Captura</title>
   
   <!-- Fuentes: Inter para legibilidad, JetBrains Mono para toques Tech -->
@@ -1264,18 +1264,16 @@
         let peticionesEnParalelo = [];
         let archivosProcesados = 0;
         
-        // NUEVO: Generamos un ID único para este lote de envío específico
-        let idUnicoEnvio = Date.now().toString().slice(-6); 
+        // Genera el ID único fuera del bucle para agrupar los archivos de este envío
+        let idUnicoEnvio = Date.now().toString().slice(-5); 
         
-        // MAGIA: Ejecutar las subidas al mismo tiempo
         if (archivosAEnviar.length > 0) {
             for(let i = 0; i < archivosAEnviar.length; i++) {
                 let item = archivosAEnviar[i];
                 contadoresSubida[item.tipo]++;
                 
-                // NUEVO: Agregamos la variable idUnicoEnvio al nombreFinal
-                // Esto garantiza que si suben FOTO1 dos veces en el mismo día, los nombres sean distintos (ej. ..._458921_FOTO1.jpeg)
-                let nombreFinal = `${sigla}-${frente}-${ubicacion}-${fecha}_${modulo}_${idUnicoEnvio}_${item.tipo.toUpperCase()}${contadoresSubida[item.tipo]}.${item.extension}`;
+                // Se concatena el idUnicoEnvio al final del nombre con un guion normal
+                let nombreFinal = `${sigla}-${frente}-${ubicacion}-${fecha}_${modulo}_${item.tipo.toUpperCase()}${contadoresSubida[item.tipo]}-${idUnicoEnvio}.${item.extension}`;
 
                 peticionesEnParalelo.push( (async () => {
                     try {
