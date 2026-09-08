@@ -1264,13 +1264,18 @@
         let peticionesEnParalelo = [];
         let archivosProcesados = 0;
         
+        // NUEVO: Generamos un ID único para este lote de envío específico
+        let idUnicoEnvio = Date.now().toString().slice(-6); 
+        
         // MAGIA: Ejecutar las subidas al mismo tiempo
         if (archivosAEnviar.length > 0) {
             for(let i = 0; i < archivosAEnviar.length; i++) {
                 let item = archivosAEnviar[i];
                 contadoresSubida[item.tipo]++;
                 
-                let nombreFinal = `${sigla}-${frente}-${ubicacion}-${fecha}_${modulo}_${item.tipo.toUpperCase()}${contadoresSubida[item.tipo]}.${item.extension}`;
+                // NUEVO: Agregamos la variable idUnicoEnvio al nombreFinal
+                // Esto garantiza que si suben FOTO1 dos veces en el mismo día, los nombres sean distintos (ej. ..._458921_FOTO1.jpeg)
+                let nombreFinal = `${sigla}-${frente}-${ubicacion}-${fecha}_${modulo}_${idUnicoEnvio}_${item.tipo.toUpperCase()}${contadoresSubida[item.tipo]}.${item.extension}`;
 
                 peticionesEnParalelo.push( (async () => {
                     try {
