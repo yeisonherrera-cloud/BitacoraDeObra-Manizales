@@ -680,6 +680,10 @@
     // =========================================================================
     // ENVIAR REPORTE (IDEMPOTENCIA DE PASO A PASO)
     // =========================================================================
+    // Variables globales para persistir tickets durante reintentos
+    let idReporteActual = null;
+    let telegramSessionData = null; 
+
     async function enviarReporteEnCola() {
         if (isRecording) return showToast("Cortar transmisión de voz antes de enviar.");
         
@@ -710,21 +714,27 @@
         archivosAEnviar.forEach(item => { if(contadoresTipo[item.tipo] !== undefined) contadoresTipo[item.tipo]++; });
         let resumenText = `Total: ${contadoresTipo['Foto']} Imágenes, ${contadoresTipo['Video']} Videos, ${contadoresTipo['Audio']} Audios.`;
 
-        // 1. SOLICITA EL ENCABEZADO A GOOGLE
+        // 1. TICKET ÚNICO DE REPORTE (Idempotencia)
+        if (!idReporteActual) {
+            idReporteActual = "REP_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+        }
+
+        // 2. SOLICITA EL ENCABEZADO A GOOGLE (Con Idempotencia)
         if (!telegramSessionData) {
             try {
                 const rTg = await fetch(URL_APPS_SCRIPT, { 
-                    method: 'POST', body: JSON.stringify({ action: 'telegram_header', proyecto: proyectoElegido, usuario: usuarioActual.nombre, frente: frente, ubicacion: ubicacion, modulo: modulo, descripcion: descripcion, resumen: resumenText, isRetie: isRetie }) 
+                    method: 'POST', body: JSON.stringify({ action: 'telegram_header', idReporte: idReporteActual, proyecto: proyectoElegido, usuario: usuarioActual.nombre, frente: frente, ubicacion: ubicacion, modulo: modulo, descripcion: descripcion, resumen: resumenText, isRetie: isRetie }) 
                 });
                 const resTg = await rTg.json();
                 if (resTg.estado === "error") return errorLoader(`Falla de conexión.<br><span style="font-size:10px;color:var(--accent);margin-top:10px;display:block;">${resTg.mensaje}</span>`);
                 
-                telegramSessionData = { threads: resTg.threads || {}, token: resTg.telegramToken, chats: resTg.targetChats || [] };
+                telegramSessionData = resTg.threads || {};
             } catch(e) {
                 return errorLoader(`Falla de conexión con el servidor.`);
             }
         }
 
+        // 3. PROCESAMIENTO PARALELO (Delegando trabajo pesado a Google)
         if (typeof window.contadoresLote === 'undefined') window.contadoresLote = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
         
         let peticionesEnParalelo = [];
@@ -734,7 +744,7 @@
             for(let i = 0; i < archivosAEnviar.length; i++) {
                 let item = archivosAEnviar[i];
                 
-                // PASO 1: CONGELAR NOMBRE. Guarda inmediatamente en memoria del celular.
+                // CONGELAR NOMBRE: El nombre no muta si hay reintentos
                 if (!item.nombreAsignado) {
                     window.contadoresLote[item.tipo]++;
                     let idFijo = Date.now().toString(36).slice(-4) + Math.floor(Math.random()*1000);
@@ -745,38 +755,13 @@
 
                 peticionesEnParalelo.push( (async () => {
                     try {
-                        // PASO 2: ENVÍO A TELEGRAM. Guarda si fue exitoso para no repetir.
-                        if (telegramSessionData.token && telegramSessionData.chats.length > 0 && !item.tgEnviado) {
-                            let fileBlob = dataURItoBlob(item.base64);
-                            let tgMethod = item.tipo === 'Foto' ? 'sendPhoto' : (item.tipo === 'Video' ? 'sendVideo' : 'sendDocument');
-                            let tgFileField = item.tipo === 'Foto' ? 'photo' : (item.tipo === 'Video' ? 'video' : 'document');
-                            
-                            for (let chat of telegramSessionData.chats) {
-                                let fd = new FormData();
-                                fd.append("chat_id", chat);
-                                fd.append(tgFileField, fileBlob, nombreFinal);
-                                if (telegramSessionData.threads[chat]) fd.append("reply_to_message_id", telegramSessionData.threads[chat]);
+                        const rDrive = await fetch(URL_APPS_SCRIPT, { 
+                            method: 'POST', body: JSON.stringify({ action: 'upload', base64: item.base64, nombre: nombreFinal, proyecto: proyectoElegido, modulo: modulo, isRetie: isRetie, threads: telegramSessionData }) 
+                        });
+                        const resDrive = await rDrive.json();
+                        
+                        if(resDrive.estado !== 'exito') throw new Error(resDrive.mensaje);
 
-                                let tgRes = await fetch(`https://api.telegram.org/bot${telegramSessionData.token}/${tgMethod}`, { method: 'POST', body: fd });
-                                if (!tgRes.ok) throw new Error("Fallo en Telegram API");
-                            }
-                            item.tgEnviado = true;
-                            guardarArchivosEnIndexedDB(archivosQueue);
-                        }
-
-                        // PASO 3: ENVÍO A GOOGLE DRIVE. Guarda si fue exitoso.
-                        if (!item.driveEnviado) {
-                            const rDrive = await fetch(URL_APPS_SCRIPT, { 
-                                method: 'POST', body: JSON.stringify({ action: 'upload', base64: item.base64, nombre: nombreFinal, proyecto: proyectoElegido, isRetie: isRetie }) 
-                            });
-                            const resDrive = await rDrive.json();
-                            
-                            if(resDrive.estado !== 'exito') throw new Error(resDrive.mensaje);
-                            item.driveEnviado = true;
-                            guardarArchivosEnIndexedDB(archivosQueue);
-                        }
-
-                        // Si pasó todo impecable, limpiamos marcas de error
                         item.hasFailed = false;
 
                     } catch (e) { 
@@ -799,8 +784,8 @@
         
         let subidosExito = archivosAEnviar.length - errores;
 
-        // 3. REGISTRO DE TRAZABILIDAD
-        if (subidosExito > 0) {
+        // 4. REGISTRO DE TRAZABILIDAD
+        if (subidosExito > 0 && errores === 0) {
             actualizarUI({ progreso: 90, mensaje: "Generando Trazabilidad..." });
             try { 
                 await fetch(URL_APPS_SCRIPT, { method: 'POST', body: JSON.stringify({ action: 'trazabilidad', usuario: usuarioActual.nombre, cedula: usuarioActual.cedula, proyecto: proyectoElegido, frente: frente, ubicacion: ubicacion, modulo: modulo, resumen: `(Envío Parcial/Total) ` + resumenText, descripcion: descripcion }) });
@@ -816,11 +801,15 @@
             document.getElementById('appDescripcion').value = '';
             document.getElementById('appRetie').checked = false;
             
-            telegramSessionData = null; window.contadoresLote = undefined; 
+            // RESETEAMOS LA SESIÓN DE TICKETS AL TERMINAR EXITOSAMENTE
+            idReporteActual = null;
+            telegramSessionData = null; 
+            window.contadoresLote = undefined; 
+            
             exitoLoader(`TRANSMISIÓN FINALIZADA.${btnTelegramHTML}`, 'vistaApp');
         } else {
             let extraMsg = subidosExito > 0 ? `<br><br><span style="color:var(--primary); font-size:11px; font-family:'JetBrains Mono';">${subidosExito} ARCHIVOS RECIBIDOS. RESTO EN ESPERA.</span>` : '';
-            errorLoader(`FALLA EN ${errores} ARCHIVO(S).${extraMsg}<br><span style="font-size:10px;color:var(--accent);margin-top:10px;display:block;">${ultimoErrorTxt}</span>`);
+            errorLoader(`FALLA EN ${errores} ARCHIVO(S).${extraMsg}<br><span style="font-size:10px;color:var(--warning);margin-top:10px;display:block;">${ultimoErrorTxt}</span>`);
         }
     }
 
