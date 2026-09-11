@@ -548,7 +548,7 @@
   <div class="footer">⚡ DESARROLLO - OBRAS MANIZALES ⚡</div>
 
   <script>
-    const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbyXPKfFPOOo0Qhix51ipazGM7iPp_ouS4TApvrYw_--ibEWqLVdh5KCbokweQfbSyE5Yw/exec'; 
+    const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbwk6VJOUJJk9Z4Fhiy7dckkgYpyQixGbKYHXvFHheNK8aD4UmKeX1nFDq8WMNefq8gomw/exec'; 
     
     let dbUsuarios = []; 
     let dbProyectos = {}; 
@@ -1192,6 +1192,16 @@
         return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`; 
     }
 
+    // Función auxiliar para convertir Base64 a Blob nativo (necesario para Telegram Directo)
+    function dataURItoBlob(dataURI) {
+        let byteString = atob(dataURI.split(',')[1]);
+        let mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+        let ab = new ArrayBuffer(byteString.length);
+        let ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+        return new Blob([ab], {type: mimeString});
+    }
+
     async function enviarReporteEnCola() {
         if (isRecording) return showToast("Cortar transmisión de voz antes de enviar.");
         
@@ -1211,7 +1221,7 @@
         const fecha = obtenerFechaFormateada(); 
         const modulo = usuarioActual.modulo || "OBRA";
 
-        mostrarLoader("ENLAZANDO CON CARPETAS...");
+        mostrarLoader("ENLAZANDO CON SERVIDORES...");
         
         let archivosAEnviar = [...archivosQueue]; 
         let archivosRestantesEnCola = []; 
@@ -1219,38 +1229,29 @@
         let ultimoErrorTxt = ""; 
         let contadoresTipo = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
         
-        archivosAEnviar.forEach(item => { 
-            if(contadoresTipo[item.tipo] !== undefined) contadoresTipo[item.tipo]++; 
-        });
-        
+        archivosAEnviar.forEach(item => { if(contadoresTipo[item.tipo] !== undefined) contadoresTipo[item.tipo]++; });
         let resumenText = `Total: ${contadoresTipo['Foto']} Imágenes, ${contadoresTipo['Video']} Videos, ${contadoresTipo['Audio']} Audios.`;
 
         let hilosTelegram = {};
+        let telegramToken = "";
+        let targetChats = [];
 
+        // 1. SOLICITA EL ENCABEZADO Y LAS CREDENCIALES AL BACKEND DE GOOGLE
         if (!hilosActivos) {
             try {
                 const rTg = await fetch(URL_APPS_SCRIPT, { 
-                    method: 'POST', 
-                    body: JSON.stringify({ 
-                        action: 'telegram_header', 
-                        proyecto: proyectoElegido, 
-                        usuario: usuarioActual.nombre, 
-                        frente: frente, 
-                        ubicacion: ubicacion, 
-                        modulo: modulo, 
-                        descripcion: descripcion, 
-                        resumen: resumenText,
-                        isRetie: isRetie
+                    method: 'POST', body: JSON.stringify({ 
+                        action: 'telegram_header', proyecto: proyectoElegido, usuario: usuarioActual.nombre, 
+                        frente: frente, ubicacion: ubicacion, modulo: modulo, descripcion: descripcion, resumen: resumenText, isRetie: isRetie
                     }) 
                 });
                 const resTg = await rTg.json();
-                if (resTg.estado === "error") {
-                    return errorLoader(`Falla de conexión.<br><span style="font-size:10px;color:var(--accent);margin-top:10px;display:block;">${resTg.mensaje}</span>`);
-                }
-                if (resTg.threads) {
-                    hilosTelegram = resTg.threads;
-                    hilosActivos = resTg.threads; 
-                }
+                if (resTg.estado === "error") return errorLoader(`Falla de conexión.<br><span style="font-size:10px;color:var(--accent);margin-top:10px;display:block;">${resTg.mensaje}</span>`);
+                
+                hilosTelegram = resTg.threads || {};
+                hilosActivos = resTg.threads; 
+                telegramToken = resTg.telegramToken; // Recibe el token temporalmente
+                targetChats = resTg.targetChats || [];
             } catch(e) {
                 return errorLoader(`Falla de conexión con el servidor.`);
             }
@@ -1259,11 +1260,9 @@
         }
 
         // =========================================================
-        // INICIO LÓGICA DE IDEMPOTENCIA
+        // 2. OFFLOAD AL CLIENTE: SUBIDA DIRECTA A TELEGRAM Y DRIVE
         // =========================================================
-        if (typeof window.contadoresLote === 'undefined') {
-            window.contadoresLote = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
-        }
+        if (typeof window.contadoresLote === 'undefined') window.contadoresLote = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
         
         let peticionesEnParalelo = [];
         let archivosProcesados = 0;
@@ -1272,39 +1271,48 @@
             for(let i = 0; i < archivosAEnviar.length; i++) {
                 let item = archivosAEnviar[i];
                 
-                // CONGELAR NOMBRE: Si el archivo falló en un intento previo, 
-                // conservará su nombre original. Si es nuevo, se le asigna uno permanente.
                 if (!item.nombreAsignado) {
                     window.contadoresLote[item.tipo]++;
                     let idFijo = Date.now().toString(36).slice(-4) + Math.floor(Math.random()*1000);
                     item.nombreAsignado = `${sigla}-${frente}-${ubicacion}-${fecha}_${modulo}_${item.tipo.toUpperCase()}${window.contadoresLote[item.tipo]}-${idFijo}.${item.extension}`;
                 }
-                
                 let nombreFinal = item.nombreAsignado;
 
                 peticionesEnParalelo.push( (async () => {
                     try {
-                        const r = await fetch(URL_APPS_SCRIPT, { 
-                            method: 'POST', 
-                            body: JSON.stringify({ 
-                                action: 'upload', 
-                                base64: item.base64, 
-                                nombre: nombreFinal, 
-                                proyecto: proyectoElegido, 
-                                modulo: modulo, 
-                                frente: frente,
-                                threads: hilosTelegram,
-                                isRetie: isRetie
-                            }) 
-                        });
-                        const res = await r.json();
+                        let uploadExitoso = true;
                         
-                        if(res.estado !== 'exito') { 
-                            errores++; 
-                            ultimoErrorTxt = res.mensaje || "Error desconocido."; 
-                            item.hasFailed = true; 
-                            archivosRestantesEnCola.push(item); 
+                        // A) ENVÍO DIRECTO A TELEGRAM (Evita colapsar a Google Apps Script)
+                        if (telegramToken && targetChats.length > 0 && !item.tgEnviado) {
+                            let fileBlob = dataURItoBlob(item.base64);
+                            let tgMethod = item.tipo === 'Foto' ? 'sendPhoto' : (item.tipo === 'Video' ? 'sendVideo' : 'sendDocument');
+                            let tgFileField = item.tipo === 'Foto' ? 'photo' : (item.tipo === 'Video' ? 'video' : 'document');
+                            
+                            for (let chat of targetChats) {
+                                let fd = new FormData();
+                                fd.append("chat_id", chat);
+                                fd.append(tgFileField, fileBlob, nombreFinal);
+                                if (hilosTelegram[chat]) fd.append("reply_to_message_id", hilosTelegram[chat]);
+
+                                let tgRes = await fetch(`https://api.telegram.org/bot${telegramToken}/${tgMethod}`, { method: 'POST', body: fd });
+                                if (!tgRes.ok) throw new Error("Fallo en Telegram API");
+                            }
+                            item.tgEnviado = true; // Sello de idempotencia local
                         }
+
+                        // B) ENVÍO LIGERO A GOOGLE DRIVE
+                        const rDrive = await fetch(URL_APPS_SCRIPT, { 
+                            method: 'POST', body: JSON.stringify({ action: 'upload', base64: item.base64, nombre: nombreFinal, proyecto: proyectoElegido, isRetie: isRetie }) 
+                        });
+                        const resDrive = await rDrive.json();
+                        
+                        if(resDrive.estado !== 'exito') { 
+                            uploadExitoso = false;
+                            ultimoErrorTxt = resDrive.mensaje; 
+                        }
+
+                        if(!uploadExitoso) throw new Error(ultimoErrorTxt);
+
                     } catch (e) { 
                         errores++; 
                         ultimoErrorTxt = e.message || e.toString(); 
@@ -1312,15 +1320,12 @@
                         archivosRestantesEnCola.push(item); 
                     }
                     archivosProcesados++;
-                    actualizarUI({ progreso: Math.floor((archivosProcesados/archivosAEnviar.length)*80), mensaje: `Transmitiendo archivos (${archivosProcesados}/${archivosAEnviar.length})...` });
+                    actualizarUI({ progreso: Math.floor((archivosProcesados/archivosAEnviar.length)*80), mensaje: `Transfiriendo datos (${archivosProcesados}/${archivosAEnviar.length})...` });
                 })() );
             }
             
             await Promise.all(peticionesEnParalelo);
         }
-        // =========================================================
-        // FIN LÓGICA DE IDEMPOTENCIA
-        // =========================================================
 
         archivosQueue = archivosRestantesEnCola; 
         guardarArchivosEnIndexedDB(archivosQueue); 
@@ -1329,20 +1334,12 @@
         let subidosExito = archivosAEnviar.length - errores;
 
         if (subidosExito > 0) {
-            actualizarUI({ progreso: 90, mensaje: "Procesando Audios..." });
+            actualizarUI({ progreso: 90, mensaje: "Generando Trazabilidad..." });
             try { 
                 await fetch(URL_APPS_SCRIPT, { 
-                    method: 'POST', 
-                    body: JSON.stringify({ 
-                        action: 'trazabilidad', 
-                        usuario: usuarioActual.nombre, 
-                        cedula: usuarioActual.cedula, 
-                        proyecto: proyectoElegido, 
-                        frente: frente, 
-                        ubicacion: ubicacion, 
-                        modulo: modulo, 
-                        resumen: `(Envío Parcial/Total) ` + resumenText, 
-                        descripcion: descripcion 
+                    method: 'POST', body: JSON.stringify({ 
+                        action: 'trazabilidad', usuario: usuarioActual.nombre, cedula: usuarioActual.cedula, proyecto: proyectoElegido, 
+                        frente: frente, ubicacion: ubicacion, modulo: modulo, resumen: `(Envío Parcial/Total) ` + resumenText, descripcion: descripcion 
                     }) 
                 });
             } catch (e) {}
@@ -1358,7 +1355,7 @@
             document.getElementById('appRetie').checked = false;
             
             hilosActivos = null;
-            window.contadoresLote = undefined; // Resetea los contadores al terminar con éxito
+            window.contadoresLote = undefined; 
             
             exitoLoader(`TRANSMISIÓN FINALIZADA.${btnTelegramHTML}`, 'vistaApp');
         } else {
