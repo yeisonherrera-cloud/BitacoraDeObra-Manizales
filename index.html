@@ -3,75 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="1.0.9">
+  <meta name="app-version" content="1.1.0">
   <title>Plataforma de Registro y Captura</title>
   
-  <!-- Fuentes: Inter para legibilidad, JetBrains Mono para toques Tech -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-  
-  <!-- LIBRERÍA LAMEJS PARA UNIFICAR TODOS LOS AUDIOS A FORMATO MP3 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
 
   <style>
     :root { 
         --primary: #00ff66; 
-        --secondary: #00ccff; 
+        --secondary: #00ccff; /* Cyan para pausas y advertencias constructivas */
         --accent: #ff0055; 
-        --warning: #f59e0b; /* Naranja para reintentos */
         --bg-dark: #020507; 
         --card-bg: rgba(5, 10, 15, 0.85); 
     }
     
-    body { 
-        margin: 0; padding: 20px; background: var(--bg-dark); 
-        font-family: 'Inter', sans-serif; color: white; text-align: center; 
-        overflow-y: auto; overflow-x: hidden; position: relative; 
-        scrollbar-width: none; -ms-overflow-style: none; display: flex; 
-        flex-direction: column; align-items: center; justify-content: center; min-height: 100vh;
-    }
+    body { margin: 0; padding: 20px; background: var(--bg-dark); font-family: 'Inter', sans-serif; color: white; text-align: center; overflow-y: auto; overflow-x: hidden; position: relative; scrollbar-width: none; -ms-overflow-style: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
     body::-webkit-scrollbar { display: none; }
     
-    /* Fondos Animados Sci-Fi */
-    .cyber-grid { 
-        position: fixed; top: -50%; left: -50%; width: 200%; height: 200%; 
-        background-image: linear-gradient(rgba(0, 255, 102, 0.08) 2px, transparent 2px), linear-gradient(90deg, rgba(0, 255, 102, 0.08) 2px, transparent 2px); 
-        background-size: 60px 60px; transform: perspective(600px) rotateX(65deg) scale(1.5); 
-        animation: moveCyberGrid 4s linear infinite; z-index: 0; opacity: 0.8; pointer-events: none; 
-        filter: drop-shadow(0px 0px 5px rgba(0, 255, 102, 0.5));
-    }
-    @keyframes moveCyberGrid { 
-        0% { transform: perspective(600px) rotateX(65deg) scale(1.5) translateY(0); } 
-        100% { transform: perspective(600px) rotateX(65deg) scale(1.5) translateY(60px); } 
-    }
+    .cyber-grid { position: fixed; top: -50%; left: -50%; width: 200%; height: 200%; background-image: linear-gradient(rgba(0, 255, 102, 0.08) 2px, transparent 2px), linear-gradient(90deg, rgba(0, 255, 102, 0.08) 2px, transparent 2px); background-size: 60px 60px; transform: perspective(600px) rotateX(65deg) scale(1.5); animation: moveCyberGrid 4s linear infinite; z-index: 0; opacity: 0.8; pointer-events: none; filter: drop-shadow(0px 0px 5px rgba(0, 255, 102, 0.5)); }
+    @keyframes moveCyberGrid { 0% { transform: perspective(600px) rotateX(65deg) scale(1.5) translateY(0); } 100% { transform: perspective(600px) rotateX(65deg) scale(1.5) translateY(60px); } }
     
-    body::after { 
-        content: ""; display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0; 
-        background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2) 1px, transparent 1px, transparent 2px);
-        z-index: 100; pointer-events: none; 
-    }
-    
-    .ambient-light { 
-        position: fixed; top: -50%; left: -50%; width: 200%; height: 200%; 
-        background: radial-gradient(circle at 20% 30%, rgba(0, 204, 255, 0.15) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(0, 255, 102, 0.1) 0%, transparent 40%); 
-        animation: rotateGlow 15s ease-in-out infinite alternate; z-index: 1; pointer-events: none; 
-    }
+    body::after { content: ""; display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2) 1px, transparent 1px, transparent 2px); z-index: 100; pointer-events: none; }
+    .ambient-light { position: fixed; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 20% 30%, rgba(0, 204, 255, 0.15) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(0, 255, 102, 0.1) 0%, transparent 40%); animation: rotateGlow 15s ease-in-out infinite alternate; z-index: 1; pointer-events: none; }
     @keyframes rotateGlow { 0% { transform: rotate(-5deg) scale(1); } 100% { transform: rotate(5deg) scale(1.1); } }
     
     @keyframes bootSequence { 0% { opacity: 0; transform: translateY(30px) scale(0.95); filter: blur(10px); } 70% { opacity: 1; transform: translateY(-5px) scale(1.02); filter: blur(0px); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
-    .card { 
-        width: 100%; max-width: 420px; position: relative; z-index: 10; 
-        background: var(--card-bg); padding: 35px 25px; border-radius: 15px; 
-        backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); 
-        box-shadow: 0 20px 50px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.1), 0 0 20px rgba(0, 204, 255, 0.1); 
-        animation: bootSequence 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
-        border: 1px solid rgba(0, 255, 102, 0.2); box-sizing: border-box; display: none; margin-bottom: 20px; overflow: hidden;
-    }
-    
-    .card::before {
-        content: ""; position: absolute; top: -100%; left: 0; width: 100%; height: 2px;
-        background: linear-gradient(90deg, transparent, var(--primary), transparent);
-        box-shadow: 0 0 15px var(--primary); animation: scanline 4s linear infinite; opacity: 0.5; z-index: 100; pointer-events: none;
-    }
+    .card { width: 100%; max-width: 420px; position: relative; z-index: 10; background: var(--card-bg); padding: 35px 25px; border-radius: 15px; backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); box-shadow: 0 20px 50px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.1), 0 0 20px rgba(0, 204, 255, 0.1); animation: bootSequence 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards; border: 1px solid rgba(0, 255, 102, 0.2); box-sizing: border-box; display: none; margin-bottom: 20px; overflow: hidden; }
+    .card::before { content: ""; position: absolute; top: -100%; left: 0; width: 100%; height: 2px; background: linear-gradient(90deg, transparent, var(--primary), transparent); box-shadow: 0 0 15px var(--primary); animation: scanline 4s linear infinite; opacity: 0.5; z-index: 100; pointer-events: none; }
     @keyframes scanline { 0% { top: -10%; opacity: 0; } 10% { opacity: 0.5; } 90% { opacity: 0.5; } 100% { top: 110%; opacity: 0; } }
 
     .card.active { display: block; }
@@ -79,47 +38,28 @@
     
     .input-group { margin-bottom: 20px; text-align: left; position: relative; }
     label { display: block; font-size: 10px; font-weight: 700; color: var(--secondary); margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 1.5px; }
-    
-    input[type="text"], input[type="number"], input[type="password"], input[type="email"], input:not([type]), select, textarea { 
-        width: 100%; padding: 15px 18px; background: rgba(0, 0, 0, 0.7); 
-        border: 1px solid rgba(0, 204, 255, 0.3); border-radius: 8px; box-sizing: border-box; 
-        font-size: 14px; color: #ffffff !important; font-family: 'JetBrains Mono', monospace; 
-        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); text-transform: uppercase; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
-    }
-    
+    input[type="text"], input[type="number"], input[type="password"], input[type="email"], input:not([type]), select, textarea { width: 100%; padding: 15px 18px; background: rgba(0, 0, 0, 0.7); border: 1px solid rgba(0, 204, 255, 0.3); border-radius: 8px; box-sizing: border-box; font-size: 14px; color: #ffffff !important; font-family: 'JetBrains Mono', monospace; transition: all 0.3s ease; text-transform: uppercase; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5); }
     input[type="text"], input[type="password"], input[type="email"], input:not([type]), select { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     textarea { text-transform: none; resize: vertical; min-height: 80px; }
-    
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 15px rgba(0, 255, 102, 0.2), inset 0 0 10px rgba(0, 255, 102, 0.1); background: rgba(0, 20, 10, 0.8); }
     select option { background: #0f172a; color: white; }
     input[type="password"] { text-transform: none; letter-spacing: 3px; }
     
-    .btn-action { 
-        width: 100%; position: relative; overflow: hidden; margin-top: 15px; padding: 16px; 
-        background: transparent; color: white; border: 1px solid var(--primary); border-radius: 8px; 
-        font-size: 14px; font-weight: 700; font-family: 'JetBrains Mono', monospace; cursor: pointer; 
-        box-shadow: 0 0 15px rgba(0, 255, 102, 0.1); transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px;
-    }
-    
-    .btn-action::before {
-        content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(0, 255, 102, 0.3), transparent); transition: all 0.5s ease; z-index: -1;
-    }
+    .btn-action { width: 100%; position: relative; overflow: hidden; margin-top: 15px; padding: 16px; background: transparent; color: white; border: 1px solid var(--primary); border-radius: 8px; font-size: 14px; font-weight: 700; font-family: 'JetBrains Mono', monospace; cursor: pointer; box-shadow: 0 0 15px rgba(0, 255, 102, 0.1); transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; }
+    .btn-action::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(0, 255, 102, 0.3), transparent); transition: all 0.5s ease; z-index: -1; }
     .btn-action:hover::before { left: 100%; }
     .btn-action:hover { background: rgba(0, 255, 102, 0.15); box-shadow: 0 0 25px rgba(0, 255, 102, 0.4), inset 0 0 10px rgba(0, 255, 102, 0.2); transform: translateY(-2px); text-shadow: 0 0 8px rgba(255,255,255,0.8); }
     .btn-action:active { transform: scale(0.97); box-shadow: 0 0 10px rgba(0, 255, 102, 0.2); }
     
     .btn-foto { border-color: #34d399; color: #34d399; box-shadow: 0 0 10px rgba(52, 211, 153, 0.1); }
-    .btn-foto:hover { background: rgba(52, 211, 153, 0.15); box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); }
+    .btn-foto:hover { background: rgba(52, 211, 153, 0.15); }
     .btn-video { border-color: #a78bfa; color: #a78bfa; box-shadow: 0 0 10px rgba(167, 139, 250, 0.1); }
-    .btn-video:hover { background: rgba(167, 139, 250, 0.15); box-shadow: 0 0 20px rgba(167, 139, 250, 0.4); }
+    .btn-video:hover { background: rgba(167, 139, 250, 0.15); }
     .btn-galeria { border-color: #38bdf8; color: #38bdf8; box-shadow: 0 0 10px rgba(56, 189, 248, 0.1); }
-    .btn-galeria:hover { background: rgba(56, 189, 248, 0.15); box-shadow: 0 0 20px rgba(56, 189, 248, 0.4); }
+    .btn-galeria:hover { background: rgba(56, 189, 248, 0.15); }
     .btn-error { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 15px rgba(255, 0, 85, 0.2); }
     .btn-error:hover { background: rgba(255, 0, 85, 0.15); box-shadow: 0 0 25px rgba(255, 0, 85, 0.5); }
-    .btn-warning { border-color: var(--warning); color: var(--warning); box-shadow: 0 0 15px rgba(245, 158, 11, 0.2); }
-    .btn-warning:hover { background: rgba(245, 158, 11, 0.15); box-shadow: 0 0 25px rgba(245, 158, 11, 0.5); }
-    .btn-telegram { border-color: #00ccff; color: #00ccff; box-shadow: 0 0 15px rgba(0, 204, 255, 0.2); }
+    .btn-telegram { border-color: var(--secondary); color: var(--secondary); box-shadow: 0 0 15px rgba(0, 204, 255, 0.2); }
     .btn-telegram:hover { background: rgba(0, 204, 255, 0.15); box-shadow: 0 0 25px rgba(0, 204, 255, 0.5); }
     
     .btn-audio-grabando { background: rgba(255, 0, 85, 0.2) !important; border-color: var(--accent) !important; color: white !important; animation: pulseRecordSciFi 1.5s infinite; }
@@ -127,7 +67,6 @@
 
     .logo-wrapper { position: relative; display: inline-block; margin-bottom: 25px; }
     .logo-wrapper img { width: 160px; border-radius: 12px; display: block; animation: float 4s ease-in-out infinite, pulseGlow 3s alternate infinite; filter: drop-shadow(0 0 15px rgba(0, 204, 255, 0.3)); }
-    
     .neon-title { margin-top: 0; font-size: 24px; font-weight: 700; color: white; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 5px rgba(255,255,255,0.5), 0 0 15px var(--primary), 0 0 30px var(--primary); }
     .message { margin: 15px 0; min-height: 20px; font-size: 13px; color: var(--primary); font-family: 'JetBrains Mono', monospace; font-weight: 500; text-shadow: 0 0 5px rgba(0, 255, 102, 0.6); letter-spacing: 1px; }
     
@@ -145,7 +84,7 @@
     .queue-item.foto { border-left-color: #34d399; }
     .queue-item.video { border-left-color: #a78bfa; }
     .queue-item.audio { border-left-color: #f59e0b; }
-    .queue-item.failed-item { border-left-color: var(--warning); background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); animation: errorShake 0.5s; }
+    .queue-item.failed-item { border-left-color: var(--secondary); background: rgba(0, 204, 255, 0.1); border: 1px solid rgba(0, 204, 255, 0.3); animation: errorShake 0.5s; }
     @keyframes errorShake { 0%, 100% {transform: translateX(0);} 25%, 75% {transform: translateX(-5px);} 50% {transform: translateX(5px);} }
     
     .modulo-badge { position: absolute; top: 15px; right: 15px; color: #020507; padding: 4px 12px; border-radius: 4px; font-size: 10px; font-weight: 800; font-family: 'JetBrains Mono', monospace; letter-spacing: 2px; box-shadow: 0 0 15px rgba(0, 204, 255, 0.6); z-index: 100; display: none; text-transform: uppercase; }
@@ -211,7 +150,7 @@
     <h2 class="neon-title" data-text="CUENTA EXISTENTE" style="color: var(--secondary);">CUENTA EXISTENTE</h2>
     <p style="color: #94a3b8; font-size: 12px; margin-bottom: 20px; line-height: 1.6; font-family: 'JetBrains Mono', monospace;">Identidad ya registrada en la base de datos central. ¿Requiere un reseteo de código de acceso?</p>
     <div class="input-group"><label>ACTUALIZAR ENLACE (NUEVO CORREO)</label><input type="email" id="reasignarCorreo" placeholder="Opcional. Llenar si cambió"></div>
-    <button class="btn-action btn-warning" onclick="enviarReasignacion()">CONFIRMAR RESETEO</button>
+    <button class="btn-action btn-telegram" onclick="enviarReasignacion()">CONFIRMAR RESETEO</button>
     <button class="btn-action" style="border-color: rgba(255,255,255,0.2); box-shadow: none; color: #a0aec0;" onclick="cambiarVista('vistaRegistro')">ABORTAR PROCEDIMIENTO</button>
   </div>
 
@@ -275,9 +214,8 @@
     let dbUsuarios = []; let dbProyectos = {}; let dbConfig = {}; let usuarioActual = {}; 
     let archivosQueue = []; let simuladorEnMarcha; let ultimaVista = 'vistaLogin'; let cedulaParaReasignar = "";
     
-    // VARIABLES GLOBALES DE IDEMPOTENCIA
+    // TICKET ÚNICO QUE PROTEGE CONTRA DUPLICADOS
     let idReporteActual = null;
-    let telegramSessionData = null; 
     
     let toastTimeout;
     function showToast(message) {
@@ -363,8 +301,8 @@
                 if(localStorage.getItem('usuarioActual')) {
                     usuarioActual = JSON.parse(localStorage.getItem('usuarioActual')); restaurarSesionYDraft();
                 } else { cambiarVista('vistaLogin'); }
-            } else { errorLoader("Fallo al leer datos centrales."); }
-        } catch (e) { errorLoader("Sin conexión al servidor."); }
+            } else { authError("Fallo al leer base de datos."); }
+        } catch (e) { authError("Sin conexión al servidor."); }
 
         document.querySelectorAll('#vistaApp input:not([type="file"]), #vistaApp select, #vistaApp textarea').forEach(el => {
             el.addEventListener('change', guardarDraft); el.addEventListener('input', guardarDraft); 
@@ -372,7 +310,7 @@
     });
 
     function guardarDraft() {
-        const draft = { proyecto: document.getElementById('appProyecto').value, frente: document.getElementById('appFrente').value, ubicacion: document.getElementById('appUbicacion').value, descripcion: document.getElementById('appDescripcion').value };
+        const draft = { proyecto: document.getElementById('appProyecto').value, frente: document.getElementById('appFrente').value, ubicacion: document.getElementById('appUbicacion').value, descripcion: document.getElementById('appDescripcion').value, idReporteActual: idReporteActual };
         localStorage.setItem('reporteDraft', JSON.stringify(draft));
     }
 
@@ -399,6 +337,7 @@
                 if (draft.frente) document.getElementById('appFrente').value = draft.frente;
                 document.getElementById('appUbicacion').value = draft.ubicacion || '';
                 document.getElementById('appDescripcion').value = draft.descripcion || '';
+                if (draft.idReporteActual) idReporteActual = draft.idReporteActual;
             } catch(e) {}
         } else { selectProyecto.value = usuarioActual.proyecto; actualizarFrentes(); }
 
@@ -418,13 +357,14 @@
         if(res.estado === 'exito') {
           usuarioActual = res; localStorage.setItem('usuarioActual', JSON.stringify(res)); document.getElementById('loginPassword').value = ''; 
           restaurarSesionYDraft(); exitoLoader(`ACCESO CONCEDIDO:<br><b style="color:white;">${res.nombre}</b>`, 'vistaApp');
-        } else { errorLoader(res.mensaje); }
-      } catch (e) { errorLoader("Falla en el enlace al servidor central."); }
+        } else { authError(res.mensaje); }
+      } catch (e) { authError("Falla en el enlace al servidor central."); }
     }
 
     function actualizarFrentes() {
         const proy = document.getElementById('appProyecto').value; const fd = document.getElementById('appFrente'); fd.innerHTML = '<option value="">SELECCIONE...</option>';
         if(dbProyectos[proy] && dbProyectos[proy].frentes) { dbProyectos[proy].frentes.forEach(f => { let opt = document.createElement('option'); opt.value = f; opt.text = f; fd.appendChild(opt); }); }
+        guardarDraft();
     }
 
     function validarCorreoRegex(correo) { return /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/.test(correo); }
@@ -444,8 +384,8 @@
                 exitoLoader(`DATOS RECIBIDOS POR EL ADMINISTRADOR.`, 'vistaLogin');
             } else if (res.estado === 'duplicado') {
                 cedulaParaReasignar = cedula; clearInterval(simuladorEnMarcha); document.getElementById("vistaLoader").classList.remove("is-processing"); cambiarVista('vistaReasignar');
-            } else { errorLoader(res.mensaje); }
-        } catch (e) { errorLoader("Falla en la transmisión."); }
+            } else { authError(res.mensaje); }
+        } catch (e) { authError("Falla en la transmisión."); }
     }
 
     async function enviarReasignacion() {
@@ -459,13 +399,13 @@
             if(res.estado === 'exito') {
                 document.getElementById('reasignarCorreo').value = ''; cedulaParaReasignar = ""; ['regCedula','regNombre','regCorreo','regCargo'].forEach(id => document.getElementById(id).value = '');
                 exitoLoader(`EL ADMINISTRADOR HA SIDO ALERTADO.`, 'vistaLogin');
-            } else { errorLoader(res.mensaje); }
-        } catch (e) { errorLoader("Falla en la transmisión."); }
+            } else { authError(res.mensaje); }
+        } catch (e) { authError("Falla en la transmisión."); }
     }
 
     function cerrarSesion() {
         usuarioActual = {}; archivosQueue = []; localStorage.removeItem('usuarioActual'); localStorage.removeItem('reporteDraft');
-        borrarArchivosDeIndexedDB(); actualizarUICola(); idReporteActual = null; telegramSessionData = null; 
+        borrarArchivosDeIndexedDB(); actualizarUICola(); idReporteActual = null;
         ['appUbicacion','appDescripcion','loginPassword','appFrente'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('appRetie').checked = false; document.getElementById('badgeModulo').style.display = 'none'; cambiarVista('vistaLogin');
     }
@@ -617,7 +557,7 @@
             if (item.hasFailed) baseClass += ' failed-item'; div.className = baseClass;
             
             let icon = item.tipo === 'Foto' ? '📸' : (item.tipo === 'Video' ? '🎥' : '🎤');
-            let failBadge = item.hasFailed ? '<br><span style="color:#f59e0b; font-size:10px; margin-top:4px; display:inline-block; background:rgba(245, 158, 11, 0.2); padding:2px 6px; border-radius:4px;">⚠️ PAUSADO - REINTENTE</span>' : '';
+            let failBadge = item.hasFailed ? '<br><span style="color:var(--secondary); font-size:10px; margin-top:4px; display:inline-block; background:rgba(0, 204, 255, 0.15); padding:2px 6px; border-radius:4px;">⏱️ PAUSADO - REINTENTE</span>' : '';
 
             div.innerHTML = `<div style="text-align: left; display: flex; align-items: center; gap: 10px;"><span style="font-size: 18px;">${icon}</span><div style="display:flex; flex-direction:column;"><span>Archivo ${item.tipo} ${index + 1}</span>${failBadge}</div></div> <div style="display: flex; gap: 15px; align-items: center;"><button class="btn-preview" onclick="abrirVistaPrevia(${index})" style="background:none; border:none; color:var(--secondary); cursor:pointer; font-size:20px; padding:0; text-shadow: 0 0 5px rgba(0, 204, 255, 0.5);" title="Inspeccionar">👁️</button><button class="btn-remove" onclick="removerDeCola(${index})" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:24px; font-weight:bold; padding:0; line-height: 1; text-shadow: 0 0 5px rgba(255, 0, 85, 0.5);" title="Eliminar">×</button></div>`;
             queueList.appendChild(div);
@@ -636,9 +576,13 @@
     function obtenerFechaFormateada() { const d = new Date(); const p = (n) => n.toString().padStart(2, '0'); return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`; }
 
     // =========================================================================
-    // ENVIAR REPORTE (IDEMPOTENCIA DE PASO A PASO)
+    // MOTOR PRINCIPAL DE ENVÍO Y REINTENTOS 
     // =========================================================================
     async function enviarReporteEnCola() {
+        if (!navigator.onLine) {
+            return errorLoader(`Estás sin conexión a internet.<br><span style="font-size:10px;color:var(--secondary);margin-top:10px;display:block;">El sistema guardó tu progreso. Activa tus datos.</span>`);
+        }
+
         if (isRecording) return showToast("Cortar transmisión de voz antes de enviar.");
         
         const proyectoElegido = document.getElementById('appProyecto').value;
@@ -662,33 +606,28 @@
         let archivosAEnviar = [...archivosQueue]; 
         let archivosRestantesEnCola = []; 
         let errores = 0; 
-        let ultimoErrorTxt = ""; 
         let contadoresTipo = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
         
         archivosAEnviar.forEach(item => { if(contadoresTipo[item.tipo] !== undefined) contadoresTipo[item.tipo]++; });
         let resumenText = `Total: ${contadoresTipo['Foto']} Imágenes, ${contadoresTipo['Video']} Videos, ${contadoresTipo['Audio']} Audios.`;
 
-        // 1. TICKET ÚNICO DE REPORTE (Idempotencia)
+        // 1. TICKET ÚNICO DE REPORTE (Asegura idempotencia total)
         if (!idReporteActual) {
             idReporteActual = "REP_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+            guardarDraft(); // Se asegura de que el ID sobreviva si recargan la página
         }
 
-        // 2. SOLICITA EL ENCABEZADO A GOOGLE (Con Idempotencia)
-        if (!telegramSessionData) {
-            try {
-                const rTg = await fetch(URL_APPS_SCRIPT, { 
-                    method: 'POST', body: JSON.stringify({ action: 'telegram_header', idReporte: idReporteActual, proyecto: proyectoElegido, usuario: usuarioActual.nombre, frente: frente, ubicacion: ubicacion, modulo: modulo, descripcion: descripcion, resumen: resumenText, isRetie: isRetie }) 
-                });
-                const resTg = await rTg.json();
-                if (resTg.estado === "error") return errorLoader(`Falla de conexión.<br><span style="font-size:10px;color:var(--accent);margin-top:10px;display:block;">${resTg.mensaje}</span>`);
-                
-                telegramSessionData = resTg.threads || {};
-            } catch(e) {
-                return errorLoader(`Falla de conexión con el servidor.`);
-            }
+        // 2. ENVIAR ENCABEZADO A GOOGLE
+        try {
+            const rTg = await fetch(URL_APPS_SCRIPT, { 
+                method: 'POST', body: JSON.stringify({ action: 'telegram_header', idReporte: idReporteActual, proyecto: proyectoElegido, usuario: usuarioActual.nombre, frente: frente, ubicacion: ubicacion, modulo: modulo, descripcion: descripcion, resumen: resumenText, isRetie: isRetie }) 
+            });
+            const resTg = await rTg.json();
+            if (resTg.estado === "error") return errorLoader(`Falla de conexión en el servidor.<br><span style="font-size:10px;color:var(--secondary);margin-top:10px;display:block;">${resTg.mensaje}</span>`);
+        } catch(e) {
+            return errorLoader(`La señal es intermitente.<br><span style="font-size:10px;color:var(--secondary);margin-top:10px;display:block;">El sistema guardó tu progreso. Intenta de nuevo.</span>`);
         }
 
-        // 3. PROCESAMIENTO PARALELO (Delegando trabajo pesado a Google)
         if (typeof window.contadoresLote === 'undefined') window.contadoresLote = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
         
         let peticionesEnParalelo = [];
@@ -698,7 +637,7 @@
             for(let i = 0; i < archivosAEnviar.length; i++) {
                 let item = archivosAEnviar[i];
                 
-                // CONGELAR NOMBRE: El nombre no muta si hay reintentos
+                // CONGELAR NOMBRE EN CASO DE REINTENTOS
                 if (!item.nombreAsignado) {
                     window.contadoresLote[item.tipo]++;
                     let idFijo = Date.now().toString(36).slice(-4) + Math.floor(Math.random()*1000);
@@ -710,17 +649,15 @@
                 peticionesEnParalelo.push( (async () => {
                     try {
                         const rDrive = await fetch(URL_APPS_SCRIPT, { 
-                            method: 'POST', body: JSON.stringify({ action: 'upload', base64: item.base64, nombre: nombreFinal, proyecto: proyectoElegido, modulo: modulo, isRetie: isRetie, threads: telegramSessionData }) 
+                            method: 'POST', body: JSON.stringify({ action: 'upload', base64: item.base64, nombre: nombreFinal, proyecto: proyectoElegido, modulo: modulo, isRetie: isRetie }) 
                         });
                         const resDrive = await rDrive.json();
                         
                         if(resDrive.estado !== 'exito') throw new Error(resDrive.mensaje);
-
                         item.hasFailed = false;
 
                     } catch (e) { 
                         errores++; 
-                        ultimoErrorTxt = e.message || e.toString(); 
                         item.hasFailed = true; 
                         archivosRestantesEnCola.push(item); 
                     }
@@ -738,11 +675,11 @@
         
         let subidosExito = archivosAEnviar.length - errores;
 
-        // 4. REGISTRO DE TRAZABILIDAD
+        // 3. REGISTRO DE TRAZABILIDAD (Solo si todo se subió perfecto)
         if (subidosExito > 0 && errores === 0) {
             actualizarUI({ progreso: 90, mensaje: "Generando Trazabilidad..." });
             try { 
-                await fetch(URL_APPS_SCRIPT, { method: 'POST', body: JSON.stringify({ action: 'trazabilidad', usuario: usuarioActual.nombre, cedula: usuarioActual.cedula, proyecto: proyectoElegido, frente: frente, ubicacion: ubicacion, modulo: modulo, resumen: `(Envío Parcial/Total) ` + resumenText, descripcion: descripcion }) });
+                await fetch(URL_APPS_SCRIPT, { method: 'POST', body: JSON.stringify({ action: 'trazabilidad', usuario: usuarioActual.nombre, cedula: usuarioActual.cedula, proyecto: proyectoElegido, frente: frente, ubicacion: ubicacion, modulo: modulo, resumen: `Total: ${contadoresTipo['Foto']} Imágenes, ${contadoresTipo['Video']} Videos, ${contadoresTipo['Audio']} Audios.`, descripcion: descripcion }) });
             } catch (e) {}
         }
 
@@ -755,15 +692,14 @@
             document.getElementById('appDescripcion').value = '';
             document.getElementById('appRetie').checked = false;
             
-            // RESETEAMOS LA SESIÓN DE TICKETS AL TERMINAR EXITOSAMENTE
+            // RESET DE IDEMPOTENCIA
             idReporteActual = null;
-            telegramSessionData = null; 
             window.contadoresLote = undefined; 
             
             exitoLoader(`TRANSMISIÓN FINALIZADA.${btnTelegramHTML}`, 'vistaApp');
         } else {
-            let extraMsg = subidosExito > 0 ? `<br><br><span style="color:var(--primary); font-size:11px; font-family:'JetBrains Mono';">${subidosExito} ARCHIVOS RECIBIDOS. RESTO EN ESPERA.</span>` : '';
-            errorLoader(`FALLA EN ${errores} ARCHIVO(S).${extraMsg}<br><span style="font-size:10px;color:var(--warning);margin-top:10px;display:block;">${ultimoErrorTxt}</span>`);
+            let extraMsg = subidosExito > 0 ? `<br><br><span style="color:var(--primary); font-size:11px; font-family:'JetBrains Mono';">✔ ${subidosExito} ARCHIVOS GUARDADOS.</span>` : '';
+            errorLoader(`PAUSADO: FALTAN ${errores} ARCHIVO(S).${extraMsg}<br><span style="font-size:10px;color:var(--secondary);margin-top:10px;display:block;">Espera mejor señal para continuar.</span>`);
         }
     }
 
@@ -792,27 +728,37 @@
     }
 
     // =========================================================================
-    // VISUAL DE REINTENTO (NARANJA - ADVERTENCIA)
-    // =========================================================================
+    // VISUAL DE PAUSA/REINTENTO (CYAN - TRANQUILIDAD PSICOLÓGICA)
+    // ==========================================
+    function authError(msgError) {
+      // Error tradicional (Rojo) solo para Login o Registro
+      clearInterval(simuladorEnMarcha); document.getElementById("vistaLoader").classList.remove("is-processing"); 
+      const t = document.getElementById("loaderTitle"); t.innerHTML = "ERROR DE CONEXIÓN"; t.style.color = "var(--accent)"; t.style.textShadow = "0 0 15px rgba(255,0,85,0.8)";
+      document.getElementById("progressBar").style.background = "var(--accent)"; document.getElementById("progressBar").innerHTML = "ERROR";
+      const m = document.getElementById("message"); clearInterval(m.scrambleInterval); m.style.color = "white"; m.innerHTML = `<b>${msgError}</b>`;
+      resetBtnError(); document.getElementById("btnErrorLoader").style.display = "flex";
+    }
+
     function errorLoader(msgError) {
+      // Estado de "Pausado por red" (Azul Cyan amigable)
       clearInterval(simuladorEnMarcha); document.getElementById("vistaLoader").classList.remove("is-processing"); 
       
       const t = document.getElementById("loaderTitle"); 
-      t.innerHTML = "CONEXIÓN INTERRUMPIDA"; 
-      t.style.color = "var(--warning)";
-      t.style.textShadow = "0 0 15px rgba(245, 158, 11, 0.8)";
+      t.innerHTML = "CARGA PAUSADA"; 
+      t.style.color = "var(--secondary)";
+      t.style.textShadow = "0 0 15px rgba(0, 204, 255, 0.8)";
       
-      document.getElementById("progressBar").style.background = "var(--warning)"; 
-      document.getElementById("progressBar").innerHTML = "PAUSADO";
+      document.getElementById("progressBar").style.background = "var(--secondary)"; 
+      document.getElementById("progressBar").innerHTML = "EN ESPERA";
       
       const m = document.getElementById("message"); 
       clearInterval(m.scrambleInterval); m.style.color = "white"; 
       m.innerHTML = `<b>${msgError}</b>`;
       
       const btn = document.getElementById("btnErrorLoader");
-      btn.className = "btn-action btn-warning"; 
+      btn.className = "btn-action btn-telegram"; // Estilo Cyan
       btn.style.background = ""; 
-      btn.innerHTML = "🔄 REINTENTAR";
+      btn.innerHTML = "🔄 REINTENTAR AHORA";
       btn.style.display = "flex";
     }
 
@@ -829,7 +775,7 @@
 
     function actualizarUI(d) { document.getElementById("progressBar").style.width = d.progreso+"%"; document.getElementById("progressBar").innerHTML = d.progreso+"%"; if(document.getElementById("message").dataset.current !== d.mensaje) { document.getElementById("message").dataset.current = d.mensaje; textScramble(document.getElementById("message"), d.mensaje); } }
 
-    let appVersionActual = "1.0.9";
+    let appVersionActual = "1.1.0";
     window.addEventListener("DOMContentLoaded", () => { const metaTag = document.querySelector('meta[name="app-version"]'); if (metaTag) appVersionActual = metaTag.content; });
     async function checkForUpdates() { try { const url = window.location.href.split('?')[0] + '?t=' + Date.now(); const response = await fetch(url, { cache: 'no-store' }); if (!response.ok) return; const htmlText = await response.text(); const match = htmlText.match(/<meta name="app-version"\s+content="([^"]+)">/); if (match && match[1] && match[1] !== appVersionActual) { document.getElementById('updateBanner').style.display = 'block'; } } catch (e) {} }
     setInterval(checkForUpdates, 10 * 60 * 1000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdates(); });
