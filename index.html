@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="1.0.5">
+  <meta name="app-version" content="1.0.7">
   <title>Plataforma de Registro y Captura</title>
   
   <!-- Fuentes: Inter para legibilidad, JetBrains Mono para toques Tech -->
@@ -225,7 +225,6 @@
         letter-spacing: 1px;
     }
     
-    /* Efecto "Llenado" holográfico al pasar el cursor */
     .btn-action::before {
         content: '';
         position: absolute;
@@ -246,7 +245,6 @@
     }
     .btn-action:active { transform: scale(0.97); box-shadow: 0 0 10px rgba(0, 255, 102, 0.2); }
     
-    /* Colores Específicos para botones */
     .btn-foto { border-color: #34d399; color: #34d399; box-shadow: 0 0 10px rgba(52, 211, 153, 0.1); }
     .btn-foto:hover { background: rgba(52, 211, 153, 0.15); box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); }
     
@@ -286,7 +284,6 @@
         filter: drop-shadow(0 0 15px rgba(0, 204, 255, 0.3));
     }
     
-    /* EFECTO TEXTO LIMPIO PERO NEON */
     .neon-title {
         margin-top: 0; 
         font-size: 24px; 
@@ -314,7 +311,7 @@
     .progress-container { 
         width: 100%; 
         background: rgba(0,0,0,0.8); 
-        border-radius: 4px; /* Más cuadrado tipo Tech */
+        border-radius: 4px;
         overflow: hidden; 
         height: 18px; 
         box-shadow: inset 0 2px 10px rgba(0,0,0,0.9); 
@@ -389,7 +386,6 @@
         font-family: 'JetBrains Mono', monospace;
     }
 
-    /* Banners y Notificaciones Toast (Sci-Fi) */
     #updateBanner { 
         position: fixed; top: 0; left: 0; width: 100%; 
         background: linear-gradient(90deg, #020507, var(--secondary), #020507); 
@@ -410,7 +406,6 @@
     }
     #toastNotification.show { bottom: 40px; }
     
-    /* Info Usuario Panel Tech */
     .user-tech-panel {
         background: linear-gradient(135deg, rgba(0, 204, 255, 0.05), transparent);
         padding: 15px; border-radius: 8px; margin-bottom: 25px; text-align: left; 
@@ -548,6 +543,7 @@
   <div class="footer">⚡ DESARROLLO - OBRAS MANIZALES ⚡</div>
 
   <script>
+    // URL DE LA NUEVA IMPLEMENTACIÓN DE PRUEBAS
     const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbwk6VJOUJJk9Z4Fhiy7dckkgYpyQixGbKYHXvFHheNK8aD4UmKeX1nFDq8WMNefq8gomw/exec'; 
     
     let dbUsuarios = []; 
@@ -560,10 +556,10 @@
     let ultimaVista = 'vistaLogin'; 
     let cedulaParaReasignar = "";
     
-    // NUEVA VARIABLE GLOBAL PARA MEMORIZAR EL HILO DE TELEGRAM
-    let hilosActivos = null; 
+    // VARIABLE GLOBAL PARA MEMORIZAR LA SESIÓN DE TELEGRAM (Idempotencia y reintentos)
+    let telegramSessionData = null; 
     
-    // UI Helpers (Toast System para reemplazar ALERTS)
+    // UI Helpers
     let toastTimeout;
     function showToast(message) {
         const toast = document.getElementById('toastNotification');
@@ -573,7 +569,7 @@
         toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, 3500);
     }
 
-    // Configuración de IndexedDB
+    // IndexedDB
     let dbArchivos;
     function initDB() {
         return new Promise((resolve) => {
@@ -611,7 +607,6 @@
         let nombre = String(proyectoNombre).toUpperCase();
         let esSST = (modulo === 'SST');
         
-        // Regla para Personal Disperso
         if (nombre.includes("PERSONAL DISPERSO") || nombre.includes("TODAS LAS OBRAS")) return "https://web.telegram.org/k/";
         
         let infoProy = dbProyectos[nombre];
@@ -847,7 +842,7 @@
         localStorage.removeItem('reporteDraft');
         borrarArchivosDeIndexedDB(); 
         actualizarUICola();
-        hilosActivos = null; // Limpiar memoria de telegram al salir
+        telegramSessionData = null; // Limpiar memoria de telegram al salir
         
         ['appUbicacion','appDescripcion','loginPassword','appFrente'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('appRetie').checked = false;
@@ -1033,7 +1028,6 @@
                 img.onload = () => {
                     setTimeout(() => {
                         const canvas = document.createElement('canvas');
-                        // Mantenemos la resolución (ancho y alto) intacta
                         canvas.width = img.width; 
                         canvas.height = img.height;
                         const ctx = canvas.getContext('2d');
@@ -1044,7 +1038,7 @@
                             let nuevoNombre = file.name.replace(/\.[^/.]+$/, "") + ".jpeg";
                             resolve(new File([blob], nuevoNombre, { type: 'image/jpeg' }));
                         }, 'image/jpeg', 0.85); 
-                    }, 50); // Leve retraso para permitir actualizar la UI
+                    }, 50); 
                 };
             };
         });
@@ -1192,7 +1186,9 @@
         return `${p(d.getDate())}-${p(d.getMonth()+1)}-${d.getFullYear()}`; 
     }
 
-    // Función auxiliar para convertir Base64 a Blob nativo (necesario para Telegram Directo)
+    // =========================================================================
+    // FUNCIÓN AUXILIAR: Convierte de Base64 a Blob nativo (Necesario para API Telegram)
+    // =========================================================================
     function dataURItoBlob(dataURI) {
         let byteString = atob(dataURI.split(',')[1]);
         let mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
@@ -1202,6 +1198,9 @@
         return new Blob([ab], {type: mimeString});
     }
 
+    // =========================================================================
+    // MOTOR DE ENVÍO LÓGICO PRINCIPAL (Optimizada para reintentos y fuera de línea)
+    // =========================================================================
     async function enviarReporteEnCola() {
         if (isRecording) return showToast("Cortar transmisión de voz antes de enviar.");
         
@@ -1232,12 +1231,8 @@
         archivosAEnviar.forEach(item => { if(contadoresTipo[item.tipo] !== undefined) contadoresTipo[item.tipo]++; });
         let resumenText = `Total: ${contadoresTipo['Foto']} Imágenes, ${contadoresTipo['Video']} Videos, ${contadoresTipo['Audio']} Audios.`;
 
-        let hilosTelegram = {};
-        let telegramToken = "";
-        let targetChats = [];
-
-        // 1. SOLICITA EL ENCABEZADO Y LAS CREDENCIALES AL BACKEND DE GOOGLE
-        if (!hilosActivos) {
+        // 1. SOLICITA EL ENCABEZADO Y LAS CREDENCIALES AL BACKEND (O USA CACHÉ DE SESIÓN)
+        if (!telegramSessionData) {
             try {
                 const rTg = await fetch(URL_APPS_SCRIPT, { 
                     method: 'POST', body: JSON.stringify({ 
@@ -1248,15 +1243,15 @@
                 const resTg = await rTg.json();
                 if (resTg.estado === "error") return errorLoader(`Falla de conexión.<br><span style="font-size:10px;color:var(--accent);margin-top:10px;display:block;">${resTg.mensaje}</span>`);
                 
-                hilosTelegram = resTg.threads || {};
-                hilosActivos = resTg.threads; 
-                telegramToken = resTg.telegramToken; // Recibe el token temporalmente
-                targetChats = resTg.targetChats || [];
+                // Guardamos la configuración de Telegram en la RAM del celular
+                telegramSessionData = {
+                    threads: resTg.threads || {},
+                    token: resTg.telegramToken,
+                    chats: resTg.targetChats || []
+                };
             } catch(e) {
                 return errorLoader(`Falla de conexión con el servidor.`);
             }
-        } else {
-            hilosTelegram = hilosActivos;
         }
 
         // =========================================================
@@ -1271,6 +1266,7 @@
             for(let i = 0; i < archivosAEnviar.length; i++) {
                 let item = archivosAEnviar[i];
                 
+                // CONGELAR NOMBRE: Si falla la red y hace reintento, el nombre no muta
                 if (!item.nombreAsignado) {
                     window.contadoresLote[item.tipo]++;
                     let idFijo = Date.now().toString(36).slice(-4) + Math.floor(Math.random()*1000);
@@ -1282,22 +1278,22 @@
                     try {
                         let uploadExitoso = true;
                         
-                        // A) ENVÍO DIRECTO A TELEGRAM (Evita colapsar a Google Apps Script)
-                        if (telegramToken && targetChats.length > 0 && !item.tgEnviado) {
+                        // A) ENVÍO DIRECTO A TELEGRAM
+                        if (telegramSessionData.token && telegramSessionData.chats.length > 0 && !item.tgEnviado) {
                             let fileBlob = dataURItoBlob(item.base64);
                             let tgMethod = item.tipo === 'Foto' ? 'sendPhoto' : (item.tipo === 'Video' ? 'sendVideo' : 'sendDocument');
                             let tgFileField = item.tipo === 'Foto' ? 'photo' : (item.tipo === 'Video' ? 'video' : 'document');
                             
-                            for (let chat of targetChats) {
+                            for (let chat of telegramSessionData.chats) {
                                 let fd = new FormData();
                                 fd.append("chat_id", chat);
                                 fd.append(tgFileField, fileBlob, nombreFinal);
-                                if (hilosTelegram[chat]) fd.append("reply_to_message_id", hilosTelegram[chat]);
+                                if (telegramSessionData.threads[chat]) fd.append("reply_to_message_id", telegramSessionData.threads[chat]);
 
-                                let tgRes = await fetch(`https://api.telegram.org/bot${telegramToken}/${tgMethod}`, { method: 'POST', body: fd });
+                                let tgRes = await fetch(`https://api.telegram.org/bot${telegramSessionData.token}/${tgMethod}`, { method: 'POST', body: fd });
                                 if (!tgRes.ok) throw new Error("Fallo en Telegram API");
                             }
-                            item.tgEnviado = true; // Sello de idempotencia local
+                            item.tgEnviado = true; // Sello local: la foto no volverá a pisar Telegram si se cae Google Drive
                         }
 
                         // B) ENVÍO LIGERO A GOOGLE DRIVE
@@ -1312,6 +1308,9 @@
                         }
 
                         if(!uploadExitoso) throw new Error(ultimoErrorTxt);
+
+                        // Si pasó ambos filtros sin error, quitamos la marca de fallo
+                        item.hasFailed = false;
 
                     } catch (e) { 
                         errores++; 
@@ -1333,6 +1332,7 @@
         
         let subidosExito = archivosAEnviar.length - errores;
 
+        // 3. REGISTRO DE TRAZABILIDAD
         if (subidosExito > 0) {
             actualizarUI({ progreso: 90, mensaje: "Generando Trazabilidad..." });
             try { 
@@ -1354,7 +1354,7 @@
             document.getElementById('appDescripcion').value = '';
             document.getElementById('appRetie').checked = false;
             
-            hilosActivos = null;
+            telegramSessionData = null; // Reiniciamos memoria de sesión para el próximo reporte
             window.contadoresLote = undefined; 
             
             exitoLoader(`TRANSMISIÓN FINALIZADA.${btnTelegramHTML}`, 'vistaApp');
@@ -1473,7 +1473,7 @@
         } 
     }
 
-    let appVersionActual = "1.0.4";
+    let appVersionActual = "1.0.7";
     
     window.addEventListener("DOMContentLoaded", () => { 
         const metaTag = document.querySelector('meta[name="app-version"]'); 
