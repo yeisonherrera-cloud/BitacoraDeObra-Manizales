@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="1.2.5">
+  <meta name="app-version" content="1.2.6">
   <title>Plataforma de Registro y Captura</title>
   
   <!-- Fuentes: Inter para legibilidad, JetBrains Mono para toques Tech -->
@@ -218,8 +218,14 @@
     <h2 id="loaderTitle" class="neon-title" data-text="INICIANDO SISTEMA">INICIANDO SISTEMA</h2>
     <div class="message" id="message" data-current="">ESTABLECIENDO ENLACE...</div>
     <div class="progress-container"><div class="progress-bar" id="progressBar">0%</div></div>
-    <!-- BOTÓN DE RECARGA DURO PARA ERRORES FATALES / REINTENTOS -->
+    
+    <!-- BOTÓN DE RECARGA DURO PARA ERRORES FATALES -->
     <button id="btnErrorLoader" class="btn-action btn-error" style="display:none;" onclick="recargarPagina()">🔄 RECARGAR PÁGINA</button>
+    
+    <!-- BOTONES DE ESCAPE (NUEVOS) -->
+    <button id="btnVolverApp" class="btn-action btn-warning" style="display:none; margin-top: 10px;" onclick="volverAAppSinLimpiar()">🔙 VOLVER (CONSERVAR DATOS)</button>
+    <button id="btnNuevoReporte" class="btn-action btn-error" style="display:none; margin-top: 10px; border-color: var(--accent);" onclick="abortarYNuevoReporte()">🗑️ LIMPIAR Y CREAR NUEVO</button>
+
     <button id="btnExitoLoader" class="btn-action" style="display:none; border-color: var(--primary); box-shadow: 0 0 20px rgba(0,255,102,0.3);" onclick="volverDeExito()">CONTINUAR</button>
   </div>
 
@@ -316,7 +322,7 @@
   <div class="footer">⚡ DESARROLLO - OBRAS MANIZALES ⚡</div>
 
   <script>
-    // URL DE LA IMPLEMENTACIÓN DE GOOGLE APPS SCRIPT
+    // URL DE LA IMPLEMENTACIÓN DE GOOGLE APPS SCRIPT ACTUALIZADA
     const URL_APPS_SCRIPT = 'https://script.google.com/macros/s/AKfycbz-HocCNLmIPn4BjIngp1cnKsuWw02uNDSu9jGlOoknP-RM8cpHUKppUm_RFn4zwf-dcw/exec'; 
     
     let dbUsuarios = []; 
@@ -1180,6 +1186,8 @@
       document.getElementById("vistaLoader").classList.add("is-processing");
       
       document.getElementById("btnErrorLoader").style.display = "none"; 
+      document.getElementById("btnVolverApp").style.display = "none";
+      document.getElementById("btnNuevoReporte").style.display = "none";
       document.getElementById("btnExitoLoader").style.display = "none";
       
       document.getElementById("loaderTitle").innerText = titulo; 
@@ -1242,7 +1250,9 @@
       m.innerHTML = `<b>${msgError}</b>`;
       
       resetBtnError(); 
-      document.getElementById("btnErrorLoader").style.display = "flex";
+      document.getElementById("btnErrorLoader").style.display = "block";
+      document.getElementById("btnVolverApp").style.display = "none";
+      document.getElementById("btnNuevoReporte").style.display = "none";
     }
 
     function errorLoader(msgError) {
@@ -1262,22 +1272,53 @@
       m.style.color = "white"; 
       m.innerHTML = `<b>${msgError}</b>`;
       
+      // Mostrar Botón de Reintento Inmediato
       const btn = document.getElementById("btnErrorLoader");
       btn.className = "btn-action btn-telegram";
       btn.style.background = ""; 
       btn.innerHTML = "🔄 REINTENTAR AHORA";
-      btn.onclick = reintentarEnvioDirecto; // EJECUTA EL REINTENTO DIRECTAMENTE
-      btn.style.display = "flex";
+      btn.onclick = reintentarEnvioDirecto; 
+      btn.style.display = "block";
+
+      // Mostrar Botones de Escape
+      document.getElementById("btnVolverApp").style.display = "block";
+      document.getElementById("btnNuevoReporte").style.display = "block";
     }
 
     function reintentarEnvioDirecto() {
         document.getElementById("btnErrorLoader").style.display = "none";
+        document.getElementById("btnVolverApp").style.display = "none";
+        document.getElementById("btnNuevoReporte").style.display = "none";
         enviarReporteEnCola(); // Re-lanza la conexión inmediatamente
     }
 
-    function volverDeError() { 
+    // Funciones de escape para evitar que los usuarios queden atrapados
+    function volverAAppSinLimpiar() {
         document.getElementById("message").style.color = "var(--primary)"; 
-        cambiarVista(ultimaVista || 'vistaLogin'); 
+        cambiarVista('vistaApp'); 
+    }
+
+    function abortarYNuevoReporte() {
+        archivosQueue = []; 
+        borrarArchivosDeIndexedDB(); 
+        actualizarUICola(); 
+        
+        idReporteActual = null; 
+        telegramSessionData = null;
+        window.contadoresLote = undefined; 
+        localStorage.removeItem('reporteDraft');
+        
+        document.getElementById('appUbicacion').value = ''; 
+        document.getElementById('appDescripcion').value = '';
+        document.getElementById('appRetie').checked = false;
+        
+        // Ocultar botones para dejar el loader limpio para la próxima
+        document.getElementById("btnErrorLoader").style.display = "none";
+        document.getElementById("btnVolverApp").style.display = "none";
+        document.getElementById("btnNuevoReporte").style.display = "none";
+        
+        cambiarVista('vistaApp');
+        showToast("Información limpiada. Listo para nuevo reporte.");
     }
 
     function textScramble(e, t) {
@@ -1301,7 +1342,7 @@
         } 
     }
 
-    let appVersionActual = "1.2.5";
+    let appVersionActual = "1.2.6";
     
     window.addEventListener("DOMContentLoaded", () => { 
         const metaTag = document.querySelector('meta[name="app-version"]'); 
