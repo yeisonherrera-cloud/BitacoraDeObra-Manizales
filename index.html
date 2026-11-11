@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="1.2.7">
+  <meta name="app-version" content="1.2.8">
   <title>Plataforma de Registro y Captura</title>
   
   <!-- Fuentes: Inter para legibilidad, JetBrains Mono para toques Tech -->
@@ -1017,7 +1017,7 @@
     }
 
     // =========================================================================
-    // MOTOR PRINCIPAL DE ENVÍO Y REINTENTOS 
+    // MOTOR PRINCIPAL DE ENVÍO Y REINTENTOS SECUENCIAL (UNO POR UNO)
     // =========================================================================
     async function enviarReporteEnCola() {
         if (!navigator.onLine) {
@@ -1048,6 +1048,7 @@
         let archivosRestantesEnCola = []; 
         let errores = 0; 
         let contadoresTipo = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
+        let ultimoErrorDetectado = "Corte de red o límite de conexión.";
         
         archivosAEnviar.forEach(item => { if(contadoresTipo[item.tipo] !== undefined) contadoresTipo[item.tipo]++; });
         let resumenText = `Total: ${contadoresTipo['Foto']} Imágenes, ${contadoresTipo['Video']} Videos, ${contadoresTipo['Audio']} Audios.`;
@@ -1086,10 +1087,8 @@
             }
         }
 
-        // 3. PROCESAMIENTO PARALELO (Delegando trabajo pesado a Google)
+        // 3. PROCESAMIENTO SECUENCIAL GARANTIZADO (Cero atascos)
         if (typeof window.contadoresLote === 'undefined') window.contadoresLote = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
-        
-        let peticionesEnParalelo = [];
         let archivosProcesados = 0;
         
         if (archivosAEnviar.length > 0) {
@@ -1105,36 +1104,36 @@
                 }
                 let nombreFinal = item.nombreAsignado;
 
-                peticionesEnParalelo.push( (async () => {
-                    try {
-                        const rDrive = await fetch(URL_APPS_SCRIPT, { 
-                            method: 'POST', 
-                            body: JSON.stringify({ 
-                                action: 'upload', 
-                                base64: item.base64, 
-                                nombre: nombreFinal, 
-                                proyecto: proyectoElegido, 
-                                modulo: modulo, 
-                                isRetie: isRetie, 
-                                threads: telegramSessionData 
-                            }) 
-                        });
-                        const resDrive = await rDrive.json();
-                        
-                        if(resDrive.estado !== 'exito') throw new Error(resDrive.mensaje);
-                        item.hasFailed = false;
+                try {
+                    actualizarUI({ progreso: Math.floor((archivosProcesados/archivosAEnviar.length)*80) + 10, mensaje: `Enviando archivo ${i+1} de ${archivosAEnviar.length}...` });
+                    
+                    const rDrive = await fetch(URL_APPS_SCRIPT, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ 
+                            action: 'upload', 
+                            base64: item.base64, 
+                            nombre: nombreFinal, 
+                            proyecto: proyectoElegido, 
+                            modulo: modulo, 
+                            isRetie: isRetie, 
+                            threads: telegramSessionData 
+                        }) 
+                    });
+                    
+                    if(!rDrive.ok) throw new Error("Google bloqueó la conexión.");
+                    
+                    const resDrive = await rDrive.json();
+                    if(resDrive.estado !== 'exito') throw new Error(resDrive.mensaje);
+                    item.hasFailed = false;
 
-                    } catch (e) { 
-                        errores++; 
-                        item.hasFailed = true; 
-                        archivosRestantesEnCola.push(item); 
-                    }
-                    archivosProcesados++;
-                    actualizarUI({ progreso: Math.floor((archivosProcesados/archivosAEnviar.length)*80), mensaje: `Transfiriendo datos (${archivosProcesados}/${archivosAEnviar.length})...` });
-                })() );
+                } catch (e) { 
+                    errores++; 
+                    item.hasFailed = true; 
+                    ultimoErrorDetectado = e.message;
+                    archivosRestantesEnCola.push(item); 
+                }
+                archivosProcesados++;
             }
-            
-            await Promise.all(peticionesEnParalelo);
         }
 
         archivosQueue = archivosRestantesEnCola; 
@@ -1173,15 +1172,14 @@
             document.getElementById('appDescripcion').value = '';
             document.getElementById('appRetie').checked = false;
             
-            // RESET DE IDEMPOTENCIA AL TERMINAR
             idReporteActual = null;
             telegramSessionData = null;
             window.contadoresLote = undefined; 
             
             exitoLoader(`TRANSMISIÓN FINALIZADA.${btnTelegramHTML}`, 'vistaApp');
         } else {
-            let extraMsg = subidosExito > 0 ? `<br><br><span style="color:var(--primary); font-size:11px; font-family:'JetBrains Mono';">✔ ${subidosExito} ARCHIVOS GUARDADOS.</span>` : '';
-            errorLoader(`PAUSADO: FALTAN ${errores} ARCHIVO(S).${extraMsg}<br><span style="font-size:10px;color:var(--secondary);margin-top:10px;display:block;">Espera mejor señal para continuar.</span>`);
+            let extraMsg = subidosExito > 0 ? `<br><br><span style="color:var(--primary); font-size:11px; font-family:'JetBrains Mono';">✔ ${subidosExito} ARCHIVOS GUARDADOS.</span><br>` : '<br><br>';
+            errorLoader(`PAUSADO: FALTAN ${errores} ARCHIVO(S).${extraMsg}<span style="font-size:10px;color:var(--accent);font-weight:bold;margin-bottom:10px;display:block;">Motivo: ${ultimoErrorDetectado}</span>`);
         }
     }
 
@@ -1381,7 +1379,7 @@
         } 
     }
 
-    let appVersionActual = "1.2.7";
+    let appVersionActual = "1.2.8";
     
     window.addEventListener("DOMContentLoaded", () => { 
         const metaTag = document.querySelector('meta[name="app-version"]'); 
