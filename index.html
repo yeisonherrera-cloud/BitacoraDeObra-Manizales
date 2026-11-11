@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="1.2.8">
+  <meta name="app-version" content="1.2.9">
   <title>Plataforma de Registro y Captura</title>
   
   <!-- Fuentes: Inter para legibilidad, JetBrains Mono para toques Tech -->
@@ -242,8 +242,7 @@
     <!-- BOTÓN DE RECARGA DURO PARA ERRORES FATALES -->
     <button id="btnErrorLoader" class="btn-action btn-error" style="display:none;" onclick="recargarPagina()">🔄 RECARGAR PÁGINA</button>
     
-    <!-- BOTONES DE ESCAPE (UX REINTENTO/NUEVO) -->
-    <button id="btnVolverApp" class="btn-action btn-warning" style="display:none; margin-top: 10px;" onclick="volverAAppSinLimpiar()">🔙 VOLVER (CONSERVAR DATOS)</button>
+    <!-- BOTÓN NUEVO REPORTE EN CASO DE FALLO (Reemplaza al de volver) -->
     <button id="btnNuevoReporte" class="btn-action btn-error" style="display:none; margin-top: 10px; border-color: var(--accent);" onclick="abortarYNuevoReporte()">🗑️ LIMPIAR Y CREAR NUEVO</button>
 
     <button id="btnExitoLoader" class="btn-action" style="display:none; border-color: var(--primary); box-shadow: 0 0 20px rgba(0,255,102,0.3);" onclick="volverDeExito()">CONTINUAR</button>
@@ -1017,7 +1016,7 @@
     }
 
     // =========================================================================
-    // MOTOR PRINCIPAL DE ENVÍO Y REINTENTOS SECUENCIAL (UNO POR UNO)
+    // MOTOR PRINCIPAL DE ENVÍO Y REINTENTOS (EN PARALELO Y VELOZ)
     // =========================================================================
     async function enviarReporteEnCola() {
         if (!navigator.onLine) {
@@ -1087,8 +1086,10 @@
             }
         }
 
-        // 3. PROCESAMIENTO SECUENCIAL GARANTIZADO (Cero atascos)
+        // 3. PROCESAMIENTO PARALELO (Delegando trabajo pesado a Google - MÁXIMA VELOCIDAD)
         if (typeof window.contadoresLote === 'undefined') window.contadoresLote = { 'Foto': 0, 'Video': 0, 'Audio': 0 };
+        
+        let peticionesEnParalelo = [];
         let archivosProcesados = 0;
         
         if (archivosAEnviar.length > 0) {
@@ -1104,36 +1105,40 @@
                 }
                 let nombreFinal = item.nombreAsignado;
 
-                try {
-                    actualizarUI({ progreso: Math.floor((archivosProcesados/archivosAEnviar.length)*80) + 10, mensaje: `Enviando archivo ${i+1} de ${archivosAEnviar.length}...` });
-                    
-                    const rDrive = await fetch(URL_APPS_SCRIPT, { 
-                        method: 'POST', 
-                        body: JSON.stringify({ 
-                            action: 'upload', 
-                            base64: item.base64, 
-                            nombre: nombreFinal, 
-                            proyecto: proyectoElegido, 
-                            modulo: modulo, 
-                            isRetie: isRetie, 
-                            threads: telegramSessionData 
-                        }) 
-                    });
-                    
-                    if(!rDrive.ok) throw new Error("Google bloqueó la conexión.");
-                    
-                    const resDrive = await rDrive.json();
-                    if(resDrive.estado !== 'exito') throw new Error(resDrive.mensaje);
-                    item.hasFailed = false;
+                peticionesEnParalelo.push( (async () => {
+                    try {
+                        const rDrive = await fetch(URL_APPS_SCRIPT, { 
+                            method: 'POST', 
+                            body: JSON.stringify({ 
+                                action: 'upload', 
+                                base64: item.base64, 
+                                nombre: nombreFinal, 
+                                proyecto: proyectoElegido, 
+                                modulo: modulo, 
+                                isRetie: isRetie, 
+                                threads: telegramSessionData 
+                            }) 
+                        });
+                        
+                        if(!rDrive.ok) throw new Error("Google bloqueó la conexión.");
+                        
+                        const resDrive = await rDrive.json();
+                        if(resDrive.estado !== 'exito') throw new Error(resDrive.mensaje);
+                        item.hasFailed = false;
 
-                } catch (e) { 
-                    errores++; 
-                    item.hasFailed = true; 
-                    ultimoErrorDetectado = e.message;
-                    archivosRestantesEnCola.push(item); 
-                }
-                archivosProcesados++;
+                    } catch (e) { 
+                        errores++; 
+                        item.hasFailed = true; 
+                        ultimoErrorDetectado = e.message;
+                        archivosRestantesEnCola.push(item); 
+                    }
+                    archivosProcesados++;
+                    actualizarUI({ progreso: Math.floor((archivosProcesados/archivosAEnviar.length)*80) + 10, mensaje: `Transfiriendo datos (${archivosProcesados}/${archivosAEnviar.length})...` });
+                })() );
             }
+            
+            // Lanza todos los envíos al mismo tiempo (super rápido)
+            await Promise.all(peticionesEnParalelo);
         }
 
         archivosQueue = archivosRestantesEnCola; 
@@ -1207,7 +1212,6 @@
       document.getElementById("vistaLoader").classList.add("is-processing");
       
       document.getElementById("btnErrorLoader").style.display = "none"; 
-      document.getElementById("btnVolverApp").style.display = "none";
       document.getElementById("btnNuevoReporte").style.display = "none";
       document.getElementById("btnExitoLoader").style.display = "none";
       
@@ -1272,7 +1276,6 @@
       
       resetBtnError(); 
       document.getElementById("btnErrorLoader").style.display = "block";
-      document.getElementById("btnVolverApp").style.display = "none";
       document.getElementById("btnNuevoReporte").style.display = "none";
     }
 
@@ -1301,22 +1304,14 @@
       btn.onclick = reintentarEnvioDirecto; 
       btn.style.display = "block";
 
-      // Mostrar Botones de Escape
-      document.getElementById("btnVolverApp").style.display = "block";
+      // Mostrar el botón de Limpiar y Crear Nuevo
       document.getElementById("btnNuevoReporte").style.display = "block";
     }
 
     function reintentarEnvioDirecto() {
         document.getElementById("btnErrorLoader").style.display = "none";
-        document.getElementById("btnVolverApp").style.display = "none";
         document.getElementById("btnNuevoReporte").style.display = "none";
         enviarReporteEnCola(); // Re-lanza la conexión inmediatamente
-    }
-
-    // Funciones de escape para evitar que los usuarios queden atrapados
-    function volverAAppSinLimpiar() {
-        document.getElementById("message").style.color = "var(--primary)"; 
-        cambiarVista('vistaApp'); 
     }
 
     function abortarYNuevoReporte() {
@@ -1333,9 +1328,7 @@
         document.getElementById('appDescripcion').value = '';
         document.getElementById('appRetie').checked = false;
         
-        // Ocultar botones para dejar el loader limpio para la próxima
         document.getElementById("btnErrorLoader").style.display = "none";
-        document.getElementById("btnVolverApp").style.display = "none";
         document.getElementById("btnNuevoReporte").style.display = "none";
         
         cambiarVista('vistaApp');
@@ -1379,7 +1372,7 @@
         } 
     }
 
-    let appVersionActual = "1.2.8";
+    let appVersionActual = "1.2.9";
     
     window.addEventListener("DOMContentLoaded", () => { 
         const metaTag = document.querySelector('meta[name="app-version"]'); 
